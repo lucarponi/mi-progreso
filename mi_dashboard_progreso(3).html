@@ -1,0 +1,183 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Mi progreso — Dashboard</title>
+<style>
+:root{--bg:#f5f5f2;--card:#fff;--ink:#20201e;--muted:#77766f;--line:#e6e5df;--accent:#4f6f52;--accent2:#8a6a4a;--bad:#a84f4f;--good:#557b5b;--radius:18px}
+*{box-sizing:border-box} body{margin:0;background:radial-gradient(circle at 10% 0%,#fce7f3 0,transparent 28%),radial-gradient(circle at 95% 5%,#ede9fe 0,transparent 30%),var(--bg);color:var(--ink);font:15px/1.45 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
+.wrap{max-width:1200px;margin:0 auto;padding:28px 20px 60px}.top{display:flex;justify-content:space-between;gap:20px;align-items:end;margin-bottom:24px}
+h1{font-size:38px;line-height:1.05;margin:0 0 7px;letter-spacing:-.03em}.sub{color:var(--muted)}
+button{border:0;border-radius:13px;padding:11px 15px;font-weight:750;cursor:pointer;background:linear-gradient(135deg,var(--accent),var(--pink));color:#fff;box-shadow:0 6px 16px #8b5cf633}
+button.secondary{background:#f1ecf4;color:var(--ink);box-shadow:none} button.danger{background:#fee2e2;color:#991b1b;box-shadow:none}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}.card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:0 2px 10px #00000006}
+.kpi .label{font-size:12px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}.kpi .value{font-size:28px;font-weight:800;margin-top:5px}.kpi .hint{font-size:12px;color:var(--muted);margin-top:3px}
+.section{margin-top:20px}.section h2{font-size:18px;margin:0 0 12px}.charts{display:grid;grid-template-columns:2fr 1fr;gap:14px}
+canvas{width:100%;height:300px;display:block}.chart-title{font-weight:750;margin-bottom:8px}
+.form{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field label{display:block;font-size:12px;color:var(--muted);margin-bottom:5px}.field input,.field select{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:11px;background:#fff;font:inherit}
+.checks{display:flex;gap:10px;flex-wrap:wrap}.check{display:flex;align-items:center;gap:7px;border:1px solid var(--line);padding:10px 12px;border-radius:11px;background:#fafaf8}
+.actions{display:flex;gap:8px;align-items:center;margin-top:14px}.msg{color:var(--good);font-size:13px}
+.table-wrap{overflow:auto}.table{width:100%;border-collapse:collapse;min-width:850px}.table th,.table td{padding:10px 9px;border-bottom:1px solid var(--line);text-align:left;font-size:13px}.table th{color:var(--muted);font-weight:650}.pill{padding:4px 8px;border-radius:999px;background:#efeee9}.empty{color:var(--muted);padding:18px 0}
+.settings{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+.small{font-size:12px;color:var(--muted)}.goalbar{height:10px;background:#ecebe5;border-radius:99px;overflow:hidden;margin-top:10px}.goalbar>div{height:100%;background:var(--accent);width:0}
+@media(max-width:850px){.grid,.form,.settings,.charts{grid-template-columns:1fr 1fr}.charts{grid-template-columns:1fr}}@media(max-width:560px){.grid,.form,.settings{grid-template-columns:1fr}.top{align-items:start;flex-direction:column}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div><h1>Mi progreso</h1><div class="sub">Peso · movimiento · alimentación · agua · composición corporal</div></div>
+    <div><button class="secondary" onclick="resetForm();window.scrollTo({top:360,behavior:'smooth'})">＋ Cargar hoy</button> <button class="secondary" onclick="exportCSV()">Exportar</button> <button class="danger" onclick="clearAll()">Borrar</button></div>
+  </div>
+
+  <div class="card" style="margin-bottom:16px;background:linear-gradient(135deg,#fff 0%,#fff1f7 48%,#f0ebff 100%);overflow:hidden;position:relative">
+    <div style="position:absolute;right:-35px;top:-55px;width:170px;height:170px;border-radius:50%;background:#f9a8d455"></div>
+    <div style="position:relative"><div id="motivation" style="font-size:22px;font-weight:850">Hoy cuenta. 💖</div>
+    <div id="motivationSub" class="sub" style="margin-top:4px">No busques perfección: buscá consistencia.</div></div>
+  </div>
+
+  <div class="grid">
+    <div class="card kpi"><div class="label">Peso actual</div><div class="value" id="kWeight">—</div><div class="hint" id="kWeightHint">Cargá tu primer registro</div></div>
+    <div class="card kpi"><div class="label">Promedio semanal</div><div class="value" id="kWeekly">—</div><div class="hint">descenso vs. semana anterior</div></div>
+    <div class="card kpi"><div class="label">Objetivo</div><div class="value" id="kGoal">—</div><div class="hint" id="kGoalHint">Configurá tu objetivo abajo</div></div>
+    <div class="card kpi"><div class="label">Ejercicio esta semana</div><div class="value" id="kExercise">0</div><div class="hint">días con al menos una actividad</div></div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Cargar / corregir un día</h2>
+      <div class="small">Elegí cualquier fecha. Si ya existe, se actualiza ese día.</div>
+      <form id="entryForm" onsubmit="saveEntry(event)">
+        <div class="form" style="margin-top:12px">
+          <div class="field"><label>Fecha</label><input id="date" type="date" required></div>
+          <div class="field"><label>Peso (kg)</label><input id="weight" type="number" step="0.01" min="0"></div>
+          <div class="field"><label>Grasa corporal (%)</label><input id="fat" type="number" step="0.1" min="0"></div>
+          <div class="field"><label>Masa muscular (kg)</label><input id="muscle" type="number" step="0.1" min="0"></div>
+        </div>
+        <div style="margin-top:14px"><div class="field"><label>Actividad realizada</label></div>
+          <div class="checks">
+            <label class="check"><input id="pilates" type="checkbox"> Fuerza / Pilates</label>
+            <label class="check"><input id="tennis" type="checkbox"> Running / Tenis</label>
+            <label class="check"><input id="walk" type="checkbox"> Caminata</label>
+          </div>
+        </div>
+        <div class="form" style="margin-top:14px">
+          <div class="field"><label>Comí</label><select id="food"><option value="">—</option><option>Bien</option><option>Regular</option><option>Mal</option></select></div>
+          <div class="field"><label>Agua</label><select id="water"><option value="">—</option><option>Bien</option><option>Regular</option><option>Mal</option></select></div>
+          <div class="field" style="grid-column:span 2"><label>Nota (opcional)</label><input id="note" type="text" placeholder="Ej.: cena afuera, partido largo, etc."></div>
+        </div>
+        <div class="actions"><button type="submit">Guardar día</button><button type="button" class="secondary" onclick="resetForm()">Limpiar</button><span class="msg" id="msg"></span></div>
+      </form>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="card">
+      <h2>Objetivo</h2>
+      <div class="settings">
+        <div class="field"><label>Peso objetivo (kg)</label><input id="goalWeight" type="number" step="0.01" min="0"></div>
+        <div class="field"><label>Fecha objetivo</label><input id="goalDate" type="date"></div>
+        <div class="field"><label>Objetivo de descenso semanal (kg)</label><input id="goalWeekly" type="number" step="0.01" min="0"></div>
+      </div>
+      <div class="actions"><button onclick="saveGoal()">Guardar objetivo</button></div>
+      <div class="goalbar"><div id="goalProgress"></div></div>
+      <div class="small" id="goalText" style="margin-top:6px"></div>
+    </div>
+  </div>
+
+  <div class="section charts">
+    <div class="card"><div class="chart-title">Peso vs. objetivo</div><canvas id="weightChart"></canvas></div>
+    <div class="card"><div class="chart-title">Composición corporal</div><canvas id="bodyChart"></canvas></div>
+  </div>
+
+  <div class="section">
+    <div class="card"><h2>Historial</h2><div class="table-wrap"><table class="table"><thead><tr><th>Fecha</th><th>Peso</th><th>Fuerza/Pilates</th><th>Running/Tenis</th><th>Caminata</th><th>Comida</th><th>Agua</th><th>Grasa</th><th>Músculo</th><th></th></tr></thead><tbody id="rows"></tbody></table></div></div>
+  </div>
+</div>
+
+<script>
+const KEY='mi_progreso_dashboard_v1';
+let db=JSON.parse(localStorage.getItem(KEY)||'{"entries":{},"goal":{}}');
+const $=id=>document.getElementById(id);
+function iso(d){return d.toISOString().slice(0,10)}
+function today(){return iso(new Date())}
+function save(){localStorage.setItem(KEY,JSON.stringify(db)); render()}
+function num(v){return v===''||v==null?null:Number(v)}
+function saveEntry(e){
+ e.preventDefault(); const date=$('date').value;
+ db.entries[date]={weight:num($('weight').value),fat:num($('fat').value),muscle:num($('muscle').value),
+ pilates:$('pilates').checked,tennis:$('tennis').checked,walk:$('walk').checked,food:$('food').value,water:$('water').value,note:$('note').value};
+ save(); $('msg').textContent='Guardado ✓'; setTimeout(()=>{$('msg').textContent=''},1800);
+}
+function loadEntry(date){
+ const x=db.entries[date]; $('date').value=date;
+ if(!x){$('weight').value='';$('fat').value='';$('muscle').value='';$('pilates').checked=false;$('tennis').checked=false;$('walk').checked=false;$('food').value='';$('water').value='';$('note').value='';return}
+ $('weight').value=x.weight??'';$('fat').value=x.fat??'';$('muscle').value=x.muscle??'';$('pilates').checked=!!x.pilates;$('tennis').checked=!!x.tennis;$('walk').checked=!!x.walk;$('food').value=x.food||'';$('water').value=x.water||'';$('note').value=x.note||'';
+}
+function resetForm(){loadEntry(today());$('msg').textContent=''}
+function saveGoal(){db.goal={weight:num($('goalWeight').value),date:$('goalDate').value,weekly:num($('goalWeekly').value)};save()}
+function deleteEntry(d){if(confirm('¿Borrar el registro del '+d+'?')){delete db.entries[d];save()}}
+function clearAll(){if(confirm('Esto borra todos los registros y objetivos guardados en este navegador. ¿Continuar?')){localStorage.removeItem(KEY);location.reload()}}
+function sorted(){return Object.keys(db.entries).sort().map(d=>({date:d,...db.entries[d]}))}
+function weekStart(date){let d=new Date(date+'T12:00:00');let day=(d.getDay()+6)%7;d.setDate(d.getDate()-day);return iso(d)}
+function weeklyStats(){
+ const arr=sorted().filter(x=>x.weight!=null); const weeks={};
+ arr.forEach(x=>{let w=weekStart(x.date);(weeks[w]??=[]).push(x.weight)});
+ const keys=Object.keys(weeks).sort(); if(keys.length<2)return null;
+ let a=weeks[keys[keys.length-2]],b=weeks[keys[keys.length-1]];
+ return {prev:a.reduce((s,v)=>s+v,0)/a.length,cur:b.reduce((s,v)=>s+v,0)/b.length,week:keys[keys.length-1]};
+}
+function render(){
+ const arr=sorted(), weights=arr.filter(x=>x.weight!=null);
+ const last=weights[weights.length-1];
+ $('kWeight').textContent=last?last.weight.toFixed(2)+' kg':'—';
+ $('kWeightHint').textContent=last?'Último registro: '+last.date:'Cargá tu primer registro';
+ const ws=weeklyStats(); $('kWeekly').textContent=ws?((ws.prev-ws.cur>=0?'−':'+')+Math.abs(ws.prev-ws.cur).toFixed(2)+' kg'):'—';
+ $('kGoal').textContent=db.goal.weight!=null?db.goal.weight.toFixed(2)+' kg':'—';
+ $('kGoalHint').textContent=db.goal.date?'para '+db.goal.date:'Configurá tu objetivo abajo';
+ const now=new Date(), monday=new Date(now); monday.setDate(now.getDate()-((now.getDay()+6)%7)); const ms=iso(monday);
+ $('kExercise').textContent=arr.filter(x=>x.date>=ms&&(x.pilates||x.tennis||x.walk)).length;
+ const todayEntry=db.entries[today()];
+ const completed=todayEntry ? [todayEntry.weight!=null,todayEntry.pilates||todayEntry.tennis||todayEntry.walk,!!todayEntry.food,!!todayEntry.water].filter(Boolean).length : 0;
+ const msgs=['Empezá con una cosa. Después vemos la siguiente. 🌱','Ya empezaste: eso cuenta. ✨','Vas construyendo el hábito. 💪','Muy bien: hoy estás cuidándote. 💖','Día completo. ¡Excelente! 🔥'];
+ $('motivation').textContent=todayEntry ? `${completed}/4 objetivos de hoy` : 'Hoy cuenta. 💖';
+ $('motivationSub').textContent=msgs[Math.min(completed,4)];
+ $('goalWeight').value=db.goal.weight??'';$('goalDate').value=db.goal.date||'';$('goalWeekly').value=db.goal.weekly??'';
+ if(db.goal.weight!=null&&weights.length){
+   let start=weights[0].weight, target=db.goal.weight; let pct=start===target?100:Math.max(0,Math.min(100,(start-last.weight)/(start-target)*100));
+   $('goalProgress').style.width=pct+'%';$('goalText').textContent=`Progreso: ${pct.toFixed(0)}% · faltan ${(last.weight-target).toFixed(2)} kg para el objetivo.`;
+ }else{$('goalProgress').style.width='0%';$('goalText').textContent=''}
+ const tb=$('rows');tb.innerHTML='';
+ [...arr].reverse().forEach(x=>{let tr=document.createElement('tr');let yes=v=>v?'✓':'—';tr.innerHTML=`<td>${x.date}</td><td>${x.weight!=null?x.weight.toFixed(2)+' kg':'—'}</td><td>${yes(x.pilates)}</td><td>${yes(x.tennis)}</td><td>${yes(x.walk)}</td><td>${x.food||'—'}</td><td>${x.water||'—'}</td><td>${x.fat!=null?x.fat.toFixed(1)+'%':'—'}</td><td>${x.muscle!=null?x.muscle.toFixed(1)+' kg':'—'}</td><td><button class="secondary" onclick="loadEntry('${x.date}')">Editar</button> <button class="danger" onclick="deleteEntry('${x.date}')">×</button></td>`;tb.appendChild(tr)});
+ drawCharts(arr);
+}
+function setupCanvas(c){let r=c.getBoundingClientRect(),d=devicePixelRatio||1;c.width=r.width*d;c.height=r.height*d;let ctx=c.getContext('2d');ctx.scale(d,d);return [ctx,r.width,r.height]}
+function drawLine(ctx,pts,w,h,min,max){
+ if(pts.length<1)return; const pad={l:42,r:14,t:18,b:30};const W=w-pad.l-pad.r,H=h-pad.t-pad.b;
+ ctx.beginPath();pts.forEach((p,i)=>{let x=pad.l+i*(W/Math.max(1,pts.length-1)),y=pad.t+(max-p.v)/(max-min)*H;i?ctx.lineTo(x,y):ctx.moveTo(x,y)});ctx.stroke();
+ pts.forEach((p,i)=>{let x=pad.l+i*(W/Math.max(1,pts.length-1)),y=pad.t+(max-p.v)/(max-min)*H;ctx.beginPath();ctx.arc(x,y,3,0,Math.PI*2);ctx.fill()});
+ ctx.fillStyle='#777';ctx.font='11px system-ui';ctx.fillText(max.toFixed(1),5,16);ctx.fillText(min.toFixed(1),5,h-8);
+}
+function drawCharts(arr){
+ let c=$('weightChart'),[ctx,w,h]=setupCanvas(c);ctx.clearRect(0,0,w,h);let a=arr.filter(x=>x.weight!=null);if(!a.length){ctx.fillStyle='#777';ctx.fillText('Todavía no hay datos de peso.',20,35);return}
+ let vals=a.map(x=>x.weight), all=[...vals]; if(db.goal.weight!=null)all.push(db.goal.weight);let min=Math.min(...all)-1,max=Math.max(...all)+1;
+ ctx.strokeStyle='#4f6f52';ctx.lineWidth=2;drawLine(ctx,a.map(x=>({v:x.weight})),w,h,min,max);
+ if(db.goal.weight!=null){ctx.strokeStyle='#8a6a4a';ctx.setLineDash([6,5]);drawLine(ctx,a.map(()=>({v:db.goal.weight})),w,h,min,max);ctx.setLineDash([])}
+ ctx.fillStyle='#777';ctx.font='11px system-ui';ctx.fillText(a[0].date,42,h-8);ctx.fillText(a[a.length-1].date,Math.max(42,w-80),h-8);
+ let b=$('bodyChart'),[c2,w2,h2]=setupCanvas(b);c2.clearRect(0,0,w2,h2);let bf=arr.filter(x=>x.fat!=null),bm=arr.filter(x=>x.muscle!=null);
+ if(!bf.length&&!bm.length){c2.fillStyle='#777';c2.fillText('Cargá grasa y/o masa muscular.',20,35);return}
+ let vals2=bf.map(x=>x.fat).concat(bm.map(x=>x.muscle));let mi=Math.min(...vals2)-1,ma=Math.max(...vals2)+1;
+ if(bf.length){c2.strokeStyle='#4f6f52';c2.lineWidth=2;drawLine(c2,bf.map(x=>({v:x.fat})),w2,h2,mi,ma)}
+ if(bm.length){c2.strokeStyle='#8a6a4a';c2.lineWidth=2;drawLine(c2,bm.map(x=>({v:x.muscle})),w2,h2,mi,ma)}
+}
+function exportCSV(){
+ const arr=sorted(); if(!arr.length){alert('No hay datos para exportar.');return}
+ const headers=['fecha','peso_kg','grasa_pct','masa_muscular_kg','pilates','running_tenis','caminata','comida','agua','nota'];
+ const lines=[headers.join(',')].concat(arr.map(x=>[x.date,x.weight??'',x.fat??'',x.muscle??'',x.pilates,x.tennis,x.walk,x.food||'',x.water||'',(x.note||'').replaceAll('"','""')].map(v=>`"${v}"`).join(',')));
+ const blob=new Blob([lines.join('\n')],{type:'text/csv;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mi_progreso.csv';a.click();URL.revokeObjectURL(a.href)
+}
+$('date').addEventListener('change',e=>loadEntry(e.target.value)); $('date').value=today(); loadEntry(today()); render(); window.addEventListener('resize',render);
+</script>
+</body>
+</html>
